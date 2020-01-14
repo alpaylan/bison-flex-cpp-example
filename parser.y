@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  * 
- * Copyright (c) 2014 Krzysztof Narkiewicz <krzysztof.narkiewicz@ezaquarii.com>
+ * Copyright (c) 2014 Krzysztof Narkiewicz <krzysztof.narkiewicz@VLang.com>
  * 
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -34,7 +34,7 @@
 %define api.token.constructor
 %define api.value.type variant
 %define parse.assert
-%define api.namespace { EzAquarii }
+%define api.namespace { VLang }
 %code requires
 {
     #include <iostream>
@@ -45,7 +45,7 @@
 
     using namespace std;
 
-    namespace EzAquarii {
+    namespace VLang {
         class Scanner;
         class Interpreter;
     }
@@ -65,7 +65,7 @@
     #include "location.hh"
     
     // yylex() arguments are defined in parser.y
-    static EzAquarii::Parser::symbol_type yylex(EzAquarii::Scanner &scanner, EzAquarii::Interpreter &driver) {
+    static VLang::Parser::symbol_type yylex(VLang::Scanner &scanner, VLang::Interpreter &driver) {
         return scanner.get_next_token();
     }
     
@@ -73,83 +73,253 @@
     // x and y are same as in above static function
     // #define yylex(x, y) scanner.get_next_token()
     
-    using namespace EzAquarii;
+    using namespace VLang;
 }
 
-%lex-param { EzAquarii::Scanner &scanner }
-%lex-param { EzAquarii::Interpreter &driver }
-%parse-param { EzAquarii::Scanner &scanner }
-%parse-param { EzAquarii::Interpreter &driver }
+%lex-param { VLang::Scanner &scanner }
+%lex-param { VLang::Interpreter &driver }
+%parse-param { VLang::Scanner &scanner }
+%parse-param { VLang::Interpreter &driver }
 %locations
 %define parse.trace
 %define parse.error verbose
 
 %define api.token.prefix {TOKEN_}
 
-%token END 0 "end of file"
-%token <std::string> STRING  "string";
-%token <uint64_t> NUMBER "number";
-%token LEFTPAR "leftpar";
-%token RIGHTPAR "rightpar";
-%token SEMICOLON "semicolon";
-%token COMMA "comma";
 
-%type< EzAquarii::Command > command;
+%token END          0           "end of file"
+%token <std::string>
+    ID          "id"
+    STRING      "string"
+    ;
+%token <uint64_t>   NUMBER      "number";
+%token <double>     FLOAT       "float" ;
+%token LP           ;
+%token RP           ;
+%token LB           ;
+%token RB           ;
+%token SEMICOLON    ;
+%token COLON        ;
+%token COMMA        ;
+%token ASSN         ;
+
+%token STRLTRL      ;
+
+%token EQ           ;
+%token NE           ;
+%token LT           ;
+%token LTE          ;
+%token GT           ;
+%token GTE          ;
+
+%token AND          ;
+%token OR           ;
+%token NOT          ;
+
+%token PLUS         ;
+%token MIN          ;
+%token MUL          ;
+%token IDIV         ;
+%token FDIV         ;
+%token MOD          ;
+
+%token Func         ;
+%token Endfunc      ;
+%token If           ;
+%token Then         ;
+%token Else         ;
+%token Endif        ;
+%token While        ;
+%token Do           ;
+%token Endwhile     ;
+%token Print        ;
+%token Read         ;
+%token Return       ;
+%token For          ;
+%token Endfor       ;
+%token To           ;
+%token By           ;
+%token Var          ;
+%token Int          ;
+%token Real         ;
+
+
+%type<int> constant 
+
+
+
+
+
+%type< VLang::Command > command;
 %type< std::vector<uint64_t> > arguments;
 
 %start program
 
 %%
 
-program :   {
-                cout << "*** RUN ***" << endl;
-                cout << "Type function with list of parmeters. Parameter list can be empty" << endl
-                     << "or contain positive integers only. Examples: " << endl
-                     << " * function()" << endl
-                     << " * function(1,2,3)" << endl
-                     << "Terminate listing with ; to see parsed AST" << endl
-                     << "Terminate parser with Ctrl-D" << endl;
-                
-                cout << endl << "prompt> ";
-                
-                driver.clear();
-            }
-        | program command
-            {
-                const Command &cmd = $2;
-                cout << "command parsed, updating AST" << endl;
-                driver.addCommand(cmd);
-                cout << endl << "prompt> ";
-            }
-        | program SEMICOLON
-            {
-                cout << "*** STOP RUN ***" << endl;
-                cout << driver.str() << endl;
-            }
+program : { driver.clear(); }
+        | declaration_list_p function_list {
+            cout << "There exists Global Variables" << endl; 
+        }
+        | function_list {
+            cout << "No globals" << endl;
+        }
         ;
 
+        
+declaration_list_p : declaration_list | declaration_list declaration_list_p;
 
-command : STRING LEFTPAR RIGHTPAR
+function_list : function | function function_list;
+
+function :  basic_type Func ID LP parameter_list RP 
+                function_body
+            Endfunc 
+            {
+                cout << "Function ID: " << $3 << endl;
+            }
+            | basic_type Func ID LP RP 
+                function_body
+            Endfunc {
+                cout << "Function ID: " << $3 << endl;
+            };
+basic_type : Int | Real;
+
+parameter_list : variable_list {
+};
+
+variable_list   : ID COLON type {
+                }               
+                | variable_list COMMA ID COLON type {
+                }
+
+type    : basic_type vector_extension
+        | basic_type
+        ;
+
+vector_extension :  LB constant RB
+                    | LB RB
+                    ;
+
+function_body   : declaration_list_p statement_list
+                | statement_list
+                ;
+
+declaration_list : Var declaration SEMICOLON;
+
+declaration : variable_list;
+
+
+statement_list  : statement SEMICOLON
+                | statement SEMICOLON statement_list
+                ;
+
+statement : assignment_statement
+          | return_statement
+          | print_statement
+          | read_statement
+          | for_statement
+          | if_statement
+          | while_statement
+          ;
+
+
+assignment_statement : variable ASSN expression;
+return_statement : Return expression;
+print_statement : Print printables;
+read_statement : Read variables;
+for_statement : For variable ASSN expression To expression By expression
+                statement_list
+                Endfor
+                | For variable ASSN expression To expression
+                statement_list
+                Endfor
+                ;
+if_statement :  If lexpression
+                  Then statement_list
+                Endif
+                | If lexpression
+                  Then statement_list
+                Else statement_list
+                Endif
+                ;
+while_statement :   While lexpression
+                        Do statement_list
+                    Endwhile
+                    ;
+
+printable : expression | STRLTRL;
+printables : printable COMMA printables
+            | printable;
+
+variable : ID | ID LB expression RB;
+variables : variable COMMA variables
+            | variable
+            ;
+
+
+expression : term
+           | expression addop term
+           ;
+
+lexpression : expression
+            | expression relop expression
+            | lexpression logop lexpression
+            | logop lexpression
+            ;
+
+addop : PLUS | MIN;
+relop : EQ | NE | LT | LTE | GT | GTE;
+logop : AND| OR | NOT;
+
+term : factor
+     | term mulop factor
+     ;
+
+mulop : MUL | IDIV | FDIV | MOD;
+
+factor : variable
+        | ID LP RP
+        | ID LP argument_list RP
+        | constant
+        | LP expression RP
+        | MIN expression
+        ;
+
+argument_list : expression_list;
+
+expression_list : expression
+                | expression_list COMMA expression
+                ;
+
+
+
+
+
+constant    : NUMBER {
+	        $$ = $1;
+            }           
+            | FLOAT {
+            $$ = $1;
+            }
+
+command : STRING LP RP
         {
             string &id = $1;
-            cout << "ID: " << id << endl;
             $$ = Command(id);
         }
-    | STRING LEFTPAR arguments RIGHTPAR
+    | STRING LP arguments RP
         {
             string &id = $1;
             const std::vector<uint64_t> &args = $3;
-            cout << "function: " << id << ", " << args.size() << endl;
             $$ = Command(id, args);
         }
     ;
 
-arguments : NUMBER
+arguments : constant
         {
             uint64_t number = $1;
             $$ = std::vector<uint64_t>();
             $$.push_back(number);
-            cout << "first argument: " << number << endl;
         }
     | arguments COMMA NUMBER
         {
@@ -157,14 +327,13 @@ arguments : NUMBER
             std::vector<uint64_t> &args = $1;
             args.push_back(number);
             $$ = args;
-            cout << "next argument: " << number << ", arg list size = " << args.size() << endl;
         }
     ;
     
 %%
 
 // Bison expects us to provide implementation - otherwise linker complains
-void EzAquarii::Parser::error(const location &loc , const std::string &message) {
+void VLang::Parser::error(const location &loc , const std::string &message) {
         
         // Location should be initialized inside scanner action, but is not in this example.
         // Let's grab location directly from driver class.
